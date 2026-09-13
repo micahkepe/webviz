@@ -11,6 +11,15 @@ use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use url::Url;
 
+/// Crawler errors.
+#[derive(thiserror::Error, Debug)]
+enum CrawlError {
+    #[error("fetch failed: {0}")]
+    Fetch(#[from] reqwest::Error),
+    #[error("parse failed: {0}")]
+    Parse(String),
+}
+
 /// See:
 /// <https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy>.
 static APP_USER_AGENT: &str = concat!(
@@ -77,7 +86,7 @@ struct Scheduler {
     /// Crawl job transceiver for sending URLs to fetch tasks.
     job_tx: async_channel::Sender<Url>,
     /// Parsed page results receiver from the page parser tasks.
-    results_rx: mpsc::Receiver<ParsedPage>,
+    results_rx: mpsc::Receiver<Result<ParsedPage, CrawlError>>,
     /// Track in-flight tasks.
     in_flight: usize,
 }
@@ -86,7 +95,7 @@ impl Scheduler {
     pub(crate) fn new<T>(
         seed: T,
         job_tx: async_channel::Sender<Url>,
-        results_rx: mpsc::Receiver<ParsedPage>,
+        results_rx: mpsc::Receiver<Result<ParsedPage, CrawlError>>,
     ) -> Self
     where
         T: IntoIterator<Item = Url>,
@@ -100,10 +109,21 @@ impl Scheduler {
     }
 
     pub(crate) async fn run(&mut self) -> anyhow::Result<()> {
-        self.dispatch_queued()?;
-        while let Some(parsed) = self.results_rx.recv().await {
+        self.drain_queued()?;
+        while let Some(result) = self.results_rx.recv().await {
             self.in_flight =
                 self.in_flight.checked_sub(1).context("in_flight underflow")?;
+            let parsed = match result {
+                Ok(parsed) => parsed,
+                Err(e) => {
+                    warn!("crawl error: {e}");
+                    self.drain_queued()?;
+                    if self.in_flight == 0 && self.frontier.queued.is_empty() {
+                        break;
+                    }
+                    continue;
+                }
+            };
             info!(
                 "crawled {} -> {} outbound links",
                 parsed.url.as_str(),
@@ -113,7 +133,7 @@ impl Scheduler {
                 let _ = self.frontier.try_enqueue(link.clone());
                 debug!("\tqueued: {link}");
             }
-            self.dispatch_queued()?;
+            self.drain_queued()?;
             if self.in_flight == 0 && self.frontier.queued.is_empty() {
                 break;
             }
@@ -122,7 +142,7 @@ impl Scheduler {
         Ok(())
     }
 
-    fn dispatch_queued(&mut self) -> anyhow::Result<()> {
+    fn drain_queued(&mut self) -> anyhow::Result<()> {
         while let Some(url) = self.frontier.queued.pop_front() {
             match self.job_tx.try_send(url) {
                 Ok(()) => {
@@ -147,12 +167,9 @@ impl Scheduler {
 async fn fetch_page(
     client: &reqwest::Client,
     url: Url,
-) -> anyhow::Result<RawPage> {
-    let resp = client.get(url.as_str()).send().await?;
-    let body = match resp.error_for_status() {
-        Ok(resp) => resp.text().await?,
-        Err(e) => return Err(anyhow!("{e}")),
-    };
+) -> Result<RawPage, CrawlError> {
+    let resp = client.get(url.as_str()).send().await?.error_for_status()?;
+    let body = resp.text().await?;
     Ok(RawPage { url, content: body })
 }
 
@@ -179,7 +196,7 @@ fn parse_page(raw: &RawPage) -> anyhow::Result<ParsedPage> {
 fn spawn_workers(
     num_workers: usize,
     job_rx: &async_channel::Receiver<Url>,
-    results_tx: &mpsc::Sender<ParsedPage>,
+    results_tx: &mpsc::Sender<Result<ParsedPage, CrawlError>>,
     client: &reqwest::Client,
 ) {
     for _ in 0..num_workers {
@@ -189,17 +206,12 @@ fn spawn_workers(
 
         tokio::spawn(async move {
             while let Ok(url) = rx.recv().await {
-                let raw = match fetch_page(&client, url.clone()).await {
-                    Ok(raw) => raw,
-                    Err(e) => {
-                        warn!("fetch failed {url}: {e}");
-                        continue;
-                    }
+                let result = match fetch_page(&client, url.clone()).await {
+                    Ok(raw) => parse_page(&raw)
+                        .map_err(|e| CrawlError::Parse(e.to_string())),
+                    Err(e) => Err(e),
                 };
-                let Ok(parsed) = parse_page(&raw) else {
-                    continue;
-                };
-                if tx.send(parsed).await.is_err() {
+                if tx.send(result).await.is_err() {
                     break;
                 }
             }
@@ -257,7 +269,8 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let (job_tx, job_rx) = async_channel::bounded::<Url>(32);
-    let (results_tx, results_rx) = mpsc::channel::<ParsedPage>(32);
+    let (results_tx, results_rx) =
+        mpsc::channel::<Result<ParsedPage, CrawlError>>(32);
 
     spawn_workers(num_workers, &job_rx, &results_tx, &client);
     drop(results_tx);
