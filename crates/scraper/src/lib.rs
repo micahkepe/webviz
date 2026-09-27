@@ -49,6 +49,18 @@ pub struct ParsedPage {
     outbound_links: Vec<Url>,
 }
 
+impl ParsedPage {
+    #[must_use]
+    pub const fn url(&self) -> &Url {
+        &self.url
+    }
+
+    #[must_use]
+    pub fn outbound_links(&self) -> &[Url] {
+        &self.outbound_links
+    }
+}
+
 #[derive(Debug, Default)]
 struct Frontier {
     queued: VecDeque<Url>,

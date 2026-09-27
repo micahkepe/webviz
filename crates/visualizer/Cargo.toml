@@ -5,6 +5,11 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.19.1" }
+clap.workspace = true
+clap-verbosity-flag.workspace = true
+rand = "0.10.3"
+serde_json.workspace = true
+url.workspace = true
 wiki-scraper = { path = "../scraper" }
 
 [lints]
