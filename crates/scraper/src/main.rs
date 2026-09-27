@@ -45,7 +45,7 @@ struct ParsedPage {
     /// NOTE: outbound here meaning a different path still within the same
     /// origin, e.g., `https://foo.example.com/bar` ->
     /// `https://foo.example.com/baz`, but **not** `https://example.com/foo` ->
-    /// `https://buzz.com/bar` **nor** `https://foo.example.com/bar`
+    /// `https://buzz.com/bar` **nor** `https://foo.example.com/bar` ->
     /// `https://bar.example.com/bar`.
     outbound_links: Vec<Url>,
 }

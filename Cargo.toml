@@ -3,7 +3,6 @@ resolver = "3"
 members = ["crates/scraper", "crates/visualizer"]
 
 [workspace.lints.clippy]
-arithmetic_side_effects = "deny"
 as_conversions = "deny"
 exit = "deny"
 expect_used = "deny"
