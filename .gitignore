@@ -1,1 +1,4 @@
 /target
+
+# Parse results
+pages*.jsonl

@@ -5357,26 +5357,6 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scraper"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-channel",
- "clap",
- "clap-verbosity-flag",
- "reqwest",
- "rustc-hash 2.1.3",
- "scraper 0.27.0",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "url",
-]
-
-[[package]]
-name = "scraper"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bdd0be4d296f048bfb06dd01bbc80ef789ddd2e55583e8d2e6b804942abfabc2"
@@ -6314,6 +6294,7 @@ name = "visualizer"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "wiki-scraper",
 ]
 
 [[package]]
@@ -6738,6 +6719,26 @@ dependencies = [
  "raw-window-handle",
  "serde",
  "web-sys",
+]
+
+[[package]]
+name = "wiki-scraper"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-channel",
+ "clap",
+ "clap-verbosity-flag",
+ "reqwest",
+ "rustc-hash 2.1.3",
+ "scraper",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
 ]
 
 [[package]]

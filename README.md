@@ -10,7 +10,7 @@
   - [ ] [WikiMedia Rate Limits](https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits)
   - [ ] Re-enqueue or retry jobs that were rate limited.
 - [ ] Persistence layer
-  - [ ] Can start with JSONL until that borks
+  - [x] Can start with JSONL until that borks
   - [ ] Custom binary format?
 
 ### Visualizer

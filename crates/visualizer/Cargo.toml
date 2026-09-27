@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.19.1" }
+wiki-scraper = { path = "../scraper" }
 
 [lints]
 workspace = true
