@@ -8,6 +8,7 @@
 - [ ] Deal with Wikipedia rate limiting
   - [ ] Look at [`governor`](https://crates.io/crates/governor)
   - [ ] [WikiMedia Rate Limits](https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits)
+  - [ ] Re-enqueue or retry jobs that were rate limited.
 - [ ] Persistence layer
   - [ ] Custom binary format?
 
