@@ -2,11 +2,15 @@
 
 use clap::Parser;
 use std::{
+    f32::consts::PI,
     io::{BufRead, BufReader},
     path::PathBuf,
 };
 
-use bevy::prelude::*;
+use bevy::{
+    input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll},
+    prelude::*,
+};
 use url::Url;
 use wiki_scraper::ParsedPage;
 
@@ -70,33 +74,55 @@ fn ingest_pages(
 }
 
 fn handle_camera_movement(
-    mut query: Query<&mut Transform, With<Camera3d>>,
-    input: Res<ButtonInput<KeyCode>>,
+    mut query: Query<(&mut Transform, &mut Projection), With<Camera3d>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    drag: Res<AccumulatedMouseMotion>,
+    scroll: Res<AccumulatedMouseScroll>,
 ) {
-    let Ok(mut transform) = query.single_mut() else {
+    let Ok((mut transform, mut projection)) = query.single_mut() else {
         return;
     };
 
-    // Get all button input.
-    let mut transform_delta = Transform::default();
-    let pressed = input.get_pressed();
-    if pressed.len() == 0 {
+    // Zoom via scroll.
+    if let Projection::Perspective(ref mut perspective) = *projection {
+        perspective.fov = (-scroll.delta.y).mul_add(0.01, perspective.fov);
+        perspective.fov = perspective.fov.clamp(0.1, PI / 2.0);
+    }
+
+    // Orbit with left click mouse drag.
+    if mouse.pressed(MouseButton::Left) {
+        let sensitivity = 0.005;
+        transform.rotate_y(drag.delta.x * sensitivity);
+        transform.rotate_local_x(-drag.delta.y * sensitivity);
         return;
     }
-    input.get_pressed().for_each(|key| match *key {
-        KeyCode::ArrowUp => transform_delta.translation.y += 1.0,
-        KeyCode::ArrowDown => transform_delta.translation.y -= 1.0,
-        KeyCode::ArrowLeft => transform_delta.translation.x -= 1.0,
-        KeyCode::ArrowRight => transform_delta.translation.x += 1.0,
-        _ => {}
-    });
 
-    // Normalize the transform vector.
-    transform_delta.translation =
-        transform_delta.translation.normalize_or_zero();
+    let mut direction = Vec3::ZERO;
 
-    // Apply.
-    transform.translation += transform_delta.translation;
+    // Pan with right click mouse drag.
+    if mouse.pressed(MouseButton::Right) {
+        let sensitivity = 0.05;
+        let right = *transform.right();
+        let up = *transform.up();
+        transform.translation += right * drag.delta.x * sensitivity;
+        transform.translation -= up * drag.delta.y * sensitivity;
+    } else {
+        // Get all button input.
+        let pressed = keyboard.get_pressed();
+        if pressed.len() == 0 {
+            return;
+        }
+
+        keyboard.get_pressed().for_each(|key| match *key {
+            KeyCode::ArrowUp => direction += *transform.forward(),
+            KeyCode::ArrowDown => direction += *transform.back(),
+            KeyCode::ArrowLeft => direction += *transform.left(),
+            KeyCode::ArrowRight => direction += *transform.right(),
+            _ => {}
+        });
+        transform.translation += direction.normalize_or_zero();
+    }
 }
 
 #[derive(Parser, Debug)]
